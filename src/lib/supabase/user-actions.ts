@@ -227,16 +227,18 @@ export async function fetchAppUsers(): Promise<AppUserWithRole[]> {
       .select('permission')
       .eq('user_id', u.id);
 
+    // Include deny entries in permissions so the edit UI can detect them via editExtraPerms
+    const userPermList = userPerms?.map((p) => p.permission) ?? [];
+    const userPermSet = new Set(userPermList);
     const permissions = [
-      ...new Set([
-        ...(rolePerms?.map((p) => p.permission) ?? []),
-        ...(userPerms?.map((p) => p.permission) ?? []),
-      ]),
+      ...new Set([...(rolePerms?.map((p) => p.permission) ?? []), ...userPermList]),
     ];
 
     const portals: PortalType[] = [];
-    if (permissions.includes('portal:admin')) portals.push('admin');
-    if (permissions.includes('portal:caller')) portals.push('caller');
+    if (permissions.includes('portal:admin') && !userPermSet.has('portal:admin:deny'))
+      portals.push('admin');
+    if (permissions.includes('portal:caller') && !userPermSet.has('portal:caller:deny'))
+      portals.push('caller');
 
     const { data: pipelineRows } = await supabase
       .from('app_user_pipelines')

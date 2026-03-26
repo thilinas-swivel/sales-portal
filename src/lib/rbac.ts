@@ -50,18 +50,22 @@ export async function getAppUser(): Promise<AppUserWithRole | null> {
     .select('permission')
     .eq('user_id', appUser.id);
 
-  // Effective permissions = role_perms ∪ user_perms (additive)
+  // Effective permissions = role_perms ∪ user_perms (deny entries excluded from positive permissions)
+  const userPermList = userPerms?.map((p) => p.permission) ?? [];
+  const userPermSet = new Set(userPermList);
   const permissions = [
     ...new Set([
       ...(rolePerms?.map((p) => p.permission) ?? []),
-      ...(userPerms?.map((p) => p.permission) ?? []),
+      ...userPermList.filter((p) => !p.endsWith(':deny')),
     ]),
   ];
 
-  // Derive portal access
+  // Derive portal access: role or user grants, minus explicit per-user denies
   const portals: PortalType[] = [];
-  if (permissions.includes('portal:admin')) portals.push('admin');
-  if (permissions.includes('portal:caller')) portals.push('caller');
+  if (permissions.includes('portal:admin') && !userPermSet.has('portal:admin:deny'))
+    portals.push('admin');
+  if (permissions.includes('portal:caller') && !userPermSet.has('portal:caller:deny'))
+    portals.push('caller');
 
   // Fetch pipeline assignments
   const { data: pipelineRows } = await supabase

@@ -42,10 +42,15 @@ function LoginContent() {
     if (status !== 'authenticated' || !session?.user) return;
 
     const portals = session.user.portals ?? [];
-    // No portals assigned — error is shown via derivedAccessError / errorParam
     if (portals.length === 0) return;
 
-    // If returning from MS auth with a portal selection
+    // Auto-redirect when user has exactly one portal — no selection needed
+    if (portals.length === 1) {
+      router.push(portals[0] === 'admin' ? '/admin' : '/caller');
+      return;
+    }
+
+    // If returning from MS auth with a portal selection the user is allowed into
     if (portalParam && portals.includes(portalParam)) {
       router.push(portalParam === 'admin' ? '/admin' : '/caller');
     }
@@ -150,63 +155,84 @@ function LoginContent() {
 
           {/* Portal Cards */}
           <div className="space-y-3 mb-8">
-            {/* Admin Portal */}
-            <button
-              onClick={() => handlePortalNavigate('admin')}
-              className={`w-full group flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
-                selectedPortal === 'admin'
-                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20'
-                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-400 dark:hover:border-indigo-600'
-              }`}
-            >
-              <div className="w-14 h-14 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
-                <Shield className="w-7 h-7 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Admin Portal
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Dashboard, pipelines, deals, settings
+            {/* When authenticated: only show portals the user has access to */}
+            {isAuthenticated && (session?.user?.portals ?? []).length === 0 ? (
+              <div className="flex items-start gap-3 p-5 rounded-2xl border-2 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                <AlertCircle className="w-6 h-6 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-red-700 dark:text-red-300">
+                    No portal access
+                  </div>
+                  <div className="text-sm text-red-600 dark:text-red-400 mt-1">
+                    Your account has not been assigned to any portal. Contact your administrator.
+                  </div>
                 </div>
               </div>
-              <ArrowRight
-                className={`w-5 h-5 transition-colors ${
-                  selectedPortal === 'admin'
-                    ? 'text-indigo-500'
-                    : 'text-gray-400 group-hover:text-indigo-500'
-                }`}
-              />
-            </button>
+            ) : (
+              <>
+                {/* Admin Portal — shown to all unauthenticated users, or authenticated users with admin access */}
+                {(!isAuthenticated || (session?.user?.portals ?? []).includes('admin')) && (
+                  <button
+                    onClick={() => handlePortalNavigate('admin')}
+                    className={`w-full group flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
+                      selectedPortal === 'admin'
+                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-indigo-400 dark:hover:border-indigo-600'
+                    }`}
+                  >
+                    <div className="w-14 h-14 rounded-xl bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
+                      <Shield className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Admin Portal
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Dashboard, pipelines, deals, settings
+                      </div>
+                    </div>
+                    <ArrowRight
+                      className={`w-5 h-5 transition-colors ${
+                        selectedPortal === 'admin'
+                          ? 'text-indigo-500'
+                          : 'text-gray-400 group-hover:text-indigo-500'
+                      }`}
+                    />
+                  </button>
+                )}
 
-            {/* Sales Portal */}
-            <button
-              onClick={() => handlePortalNavigate('caller')}
-              className={`w-full group flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
-                selectedPortal === 'caller'
-                  ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/20'
-                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-emerald-400 dark:hover:border-emerald-600'
-              }`}
-            >
-              <div className="w-14 h-14 rounded-xl bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
-                <Phone className="w-7 h-7 text-white" />
-              </div>
-              <div className="flex-1 text-left">
-                <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Sales Portal
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Leads, contacts, submissions, stats
-                </div>
-              </div>
-              <ArrowRight
-                className={`w-5 h-5 transition-colors ${
-                  selectedPortal === 'caller'
-                    ? 'text-emerald-500'
-                    : 'text-gray-400 group-hover:text-emerald-500'
-                }`}
-              />
-            </button>
+                {/* Sales Portal — shown to all unauthenticated users, or authenticated users with caller access */}
+                {(!isAuthenticated || (session?.user?.portals ?? []).includes('caller')) && (
+                  <button
+                    onClick={() => handlePortalNavigate('caller')}
+                    className={`w-full group flex items-center gap-4 p-5 rounded-2xl border-2 transition-all ${
+                      selectedPortal === 'caller'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 shadow-lg shadow-emerald-100 dark:shadow-emerald-900/20'
+                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-emerald-400 dark:hover:border-emerald-600'
+                    }`}
+                  >
+                    <div className="w-14 h-14 rounded-xl bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+                      <Phone className="w-7 h-7 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Sales Portal
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        Leads, contacts, submissions, stats
+                      </div>
+                    </div>
+                    <ArrowRight
+                      className={`w-5 h-5 transition-colors ${
+                        selectedPortal === 'caller'
+                          ? 'text-emerald-500'
+                          : 'text-gray-400 group-hover:text-emerald-500'
+                      }`}
+                    />
+                  </button>
+                )}
+              </>
+            )}
           </div>
 
           {/* Sign in with Microsoft — only shown when not authenticated */}

@@ -202,6 +202,8 @@ export default function UsersPage() {
         }
       }
       setEditRolePerms(rPerms);
+      // Clear portal deny overrides when role changes — new role's portals take effect
+      setEditExtraPerms((prev) => prev.filter((p) => !p.endsWith(':deny')));
     },
     [rolePermsCache],
   );
@@ -212,12 +214,15 @@ export default function UsersPage() {
     setEditSaving(true);
     setEditError(null);
     try {
-      await updateAppUser({
-        id: editingUser.id,
-        name: editForm.name,
-        roleId: editForm.roleId,
-        isActive: editForm.isActive,
-      });
+      await Promise.all([
+        updateAppUser({
+          id: editingUser.id,
+          name: editForm.name,
+          roleId: editForm.roleId,
+          isActive: editForm.isActive,
+        }),
+        updateUserPermissions(editingUser.id, editExtraPerms),
+      ]);
       await loadPage();
       setEditingUser((prev) =>
         prev
@@ -302,6 +307,27 @@ export default function UsersPage() {
     setEditExtraPerms((prev) =>
       prev.includes(perm) ? prev.filter((p) => p !== perm) : [...prev, perm],
     );
+  };
+
+  // ── Toggle portal access (supports revoking role-granted portals via deny) ──
+  const togglePortal = (perm: string) => {
+    if (!canEdit) return;
+    const fromRole = editRolePerms.includes(perm);
+    setEditExtraPerms((prev) => {
+      const isDenied = prev.includes(`${perm}:deny`);
+      const isExtra = prev.includes(perm);
+      const isActive = (fromRole || isExtra) && !isDenied;
+      if (isActive) {
+        // Turning OFF: if role grants it, add a deny; otherwise just remove the extra grant
+        return fromRole
+          ? [...prev.filter((p) => p !== perm), `${perm}:deny`]
+          : prev.filter((p) => p !== perm);
+      } else {
+        // Turning ON: remove any deny, add explicit grant only if role doesn't already grant it
+        const filtered = prev.filter((p) => p !== `${perm}:deny`);
+        return fromRole ? filtered : [...filtered, perm];
+      }
+    });
   };
 
   // ── Toggle pipeline assignment ───────────────────────
@@ -710,6 +736,85 @@ export default function UsersPage() {
                   </select>
                 </div>
 
+                {/* Portal Access Toggles */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Portal Access
+                  </label>
+                  <div className="space-y-2">
+                    {(
+                      [
+                        {
+                          perm: 'portal:admin',
+                          label: 'Admin Portal',
+                          desc: 'Dashboard, pipelines, deals, settings',
+                          activeClass:
+                            'border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-500/10',
+                          toggleClass: 'bg-indigo-600',
+                        },
+                        {
+                          perm: 'portal:caller',
+                          label: 'Sales Portal',
+                          desc: 'Leads, contacts, submissions, stats',
+                          activeClass:
+                            'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-500/10',
+                          toggleClass: 'bg-emerald-600',
+                        },
+                      ] as const
+                    ).map(({ perm, label, desc, activeClass, toggleClass }) => {
+                      const fromRole = editRolePerms.includes(perm);
+                      const isExtra = editExtraPerms.includes(perm);
+                      const isActive = fromRole || isExtra;
+                      return (
+                        <div
+                          key={perm}
+                          className={`flex items-center justify-between p-3.5 rounded-xl border transition-colors ${
+                            isActive
+                              ? activeClass
+                              : 'border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {label}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {desc}
+                              </span>
+                              {fromRole && (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                  from role
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => canEdit && togglePortal(perm)}
+                            disabled={!canEdit}
+                            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                              isActive ? toggleClass : 'bg-gray-300 dark:bg-gray-600'
+                            } ${canEdit ? 'cursor-pointer' : 'cursor-default opacity-60'}`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                isActive ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {editRolePerms.some((p) => p === 'portal:admin' || p === 'portal:caller') && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1.5">
+                      Portals marked &quot;from role&quot; are granted by the role but can be
+                      toggled off per user. Changing the role resets any overrides.
+                    </p>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                   <div>
                     <div className="text-sm font-medium text-gray-900 dark:text-white">Active</div>
@@ -758,7 +863,7 @@ export default function UsersPage() {
                 </p>
 
                 <div className="space-y-5">
-                  {PERMISSION_GROUPS.map((group) => (
+                  {PERMISSION_GROUPS.filter((g) => g.label !== 'Portal Access').map((group) => (
                     <div key={group.label}>
                       <h4 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2">
                         {group.label}

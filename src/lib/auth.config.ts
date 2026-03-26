@@ -41,11 +41,16 @@ export const authConfig = {
     strategy: 'jwt' as const,
   },
   callbacks: {
-    // Edge-safe: maps JWT token fields onto session.user so middleware can
-    // read portals without importing any Node/Supabase dependencies.
+    // Edge-safe: maps JWT token fields onto session.user so middleware and
+    // client useSession() can read portals and permissions.
     session({ session, token }) {
       if (session.user) {
         session.user.portals = (token.portals as PortalType[]) ?? [];
+        session.user.permissions = (token.permissions as string[]) ?? [];
+        session.user.appUserId = token.appUserId as string | undefined;
+        session.user.role = token.role as string | undefined;
+        session.user.roleLabel = token.roleLabel as string | undefined;
+        session.user.pipelineIds = (token.pipelineIds as number[]) ?? [];
       }
       return session;
     },
