@@ -11,7 +11,7 @@ import {
   InflowChart,
   WonDealsChart,
 } from './_components/pipeline-shared';
-import type { PipedriveDeal } from '@/types/pipedrive';
+import type { PipedriveDeal, PipedriveStage } from '@/types/pipedrive';
 
 // ── helpers ─────────────────────────────────────────────────────────
 function compactValue(v: number) {
@@ -70,7 +70,7 @@ function RecentDealRow({
 }: {
   deal: PipedriveDeal;
   category: 'warmed' | 'top_of_funnel';
-  stageMap: Map<number, string>;
+  stageMap: Map<number, PipedriveStage>;
 }) {
   return (
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
@@ -93,7 +93,7 @@ function RecentDealRow({
       </td>
       <td className="px-4 py-3 hidden sm:table-cell">
         <span className="text-xs text-gray-600 dark:text-gray-300">
-          {stageMap.get(deal.stage_id) ?? '—'}
+          {stageMap.get(deal.stage_id)?.name ?? '—'}
         </span>
       </td>
       <td className="px-4 py-3 hidden md:table-cell text-right">
