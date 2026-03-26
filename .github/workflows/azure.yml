@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Build → Push to Azure Container Registry → Deploy to Azure Web App
+#
+# Required GitHub Secrets:
+#   REGISTRY_LOGIN_SERVER   e.g. myregistry.azurecr.io
+#   REGISTRY_USERNAME       ACR admin username (or service principal appId)
+#   REGISTRY_PASSWORD       ACR admin password (or service principal password)
+#   AZURE_WEBAPP_NAME       Azure Web App name  e.g. leadflow-sales-portal
+#   AZURE_CREDENTIALS       JSON output of: az ad sp create-for-rbac --sdk-auth
+#
+# Required GitHub Variables (non-secret, baked in at build time):
+#   NEXT_PUBLIC_APP_URL          e.g. https://leadflow-sales-portal.azurewebsites.net
+#   NEXT_PUBLIC_SUPABASE_URL     e.g. https://xxxx.supabase.co
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY
+#
+# All runtime secrets (AUTH_SECRET, AZURE_AD_*, PIPEDRIVE_*) are set as
+# Application Settings in the Azure Web App — NOT stored in this repo.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Build & Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: sales-portal
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Log in to Azure Container Registry ────────────────────────────────
+      - name: Log in to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # ── 3. Build & push Docker image ─────────────────────────────────────────
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          cache-from: type=registry,ref=${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+          cache-to: type=inline
+
+      # ── 4. Log in to Azure ───────────────────────────────────────────────────
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # ── 5. Deploy to Azure Web App ───────────────────────────────────────────
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          images: ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
