@@ -66,7 +66,7 @@ export interface AppUserWithRole extends AppUser {
   role: AppRole;
   permissions: string[];
   portals: PortalType[];
-  /** Pipedrive pipeline IDs this user is restricted to (empty = unrestricted). */
+  /** Pipedrive pipeline IDs this user can access (empty = no access). */
   pipelineIds: number[];
 }
 

@@ -122,22 +122,22 @@ export async function requireAuth(permission?: string): Promise<AppUserWithRole>
 
 /**
  * Check if a user can access a specific Pipedrive pipeline.
- * Returns true if the user has no pipeline restrictions (admin) or
- * if the given pipeline ID is in their assigned list.
+ * Returns true only if the pipeline ID is explicitly in the user's assigned list.
+ * No assignments means no access.
  */
 export async function canAccessPipeline(
   user: AppUserWithRole | null,
   pipelineId: number,
 ): Promise<boolean> {
   if (!user) return false;
-  // No assignments = unrestricted access
-  if (user.pipelineIds.length === 0) return true;
+  // No assignments = no access
+  if (user.pipelineIds.length === 0) return false;
   return user.pipelineIds.includes(pipelineId);
 }
 
 /**
- * Get the pipeline IDs a user is restricted to.
- * Returns an empty array for unrestricted users.
+ * Get the pipeline IDs a user can access.
+ * Returns an empty array when the user has no pipeline assignments (no access).
  */
 export async function getUserPipelineIds(user: AppUserWithRole | null): Promise<number[]> {
   if (!user) return [];

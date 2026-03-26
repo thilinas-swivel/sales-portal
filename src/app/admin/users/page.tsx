@@ -930,17 +930,17 @@ export default function UsersPage() {
             {editTab === 'pipelines' && (
               <div className="flex-1 px-6 py-5">
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">
-                  Restrict this user to specific Pipedrive pipelines. If no pipelines are selected,
-                  the user can access all pipelines.
+                  Assign specific Pipedrive pipelines to this user. Users with no pipelines assigned
+                  cannot access any pipelines.
                 </p>
                 {editPipelineIds.length === 0 && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-4">
-                    ✓ Currently unrestricted — can access all pipelines
+                  <p className="text-xs text-red-500 dark:text-red-400 font-medium mb-4">
+                    ✗ No pipelines assigned — user has no pipeline access
                   </p>
                 )}
                 {editPipelineIds.length > 0 && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mb-4">
-                    Restricted to {editPipelineIds.length} pipeline
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mb-4">
+                    ✓ Access to {editPipelineIds.length} pipeline
                     {editPipelineIds.length !== 1 ? 's' : ''}
                   </p>
                 )}
@@ -1001,7 +1001,7 @@ export default function UsersPage() {
                         onClick={() => setEditPipelineIds([])}
                         className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors"
                       >
-                        Clear — grant unrestricted access
+                        Clear — revoke all pipeline access
                       </button>
                     )}
                   </div>
