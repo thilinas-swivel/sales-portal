@@ -1,14 +1,16 @@
-import { getToken } from 'next-auth/jwt';
+import NextAuth from 'next-auth';
+import { authConfig } from '@/lib/auth.config';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
-export async function middleware(req: NextRequest) {
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+const { auth } = NextAuth(authConfig);
+
+export default auth((req) => {
+  const session = req.auth;
   const { nextUrl } = req;
   const pathname = nextUrl.pathname;
 
-  const isAuthenticated = !!token;
-  const portals = (token?.portals as string[]) ?? [];
+  const isAuthenticated = !!session?.user;
+  const portals = session?.user?.portals ?? [];
 
   // ── Unauthenticated ────────────────────────────────────────────────────────
   if (!isAuthenticated) {
@@ -35,7 +37,7 @@ export async function middleware(req: NextRequest) {
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [
