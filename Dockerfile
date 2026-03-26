@@ -18,10 +18,20 @@ ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 
+# Server-side vars needed by NextAuth during next build (dummy values — real
+# values are injected at runtime via Azure App Service Application Settings)
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
-    NEXT_TELEMETRY_DISABLED=1
+    NEXT_TELEMETRY_DISABLED=1 \
+    AUTH_SECRET=build-time-placeholder \
+    AUTH_URL=http://localhost:3000 \
+    AUTH_TRUST_HOST=true \
+    AZURE_AD_CLIENT_ID=build-placeholder \
+    AZURE_AD_CLIENT_SECRET=build-placeholder \
+    AZURE_AD_TENANT_ID=build-placeholder \
+    PIPEDRIVE_API_TOKEN=build-placeholder \
+    PIPEDRIVE_COMPANY_DOMAIN=build-placeholder
 
 RUN npm run build
 
