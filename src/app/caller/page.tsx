@@ -1,321 +1,388 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
+import { useState, useEffect, useCallback } from 'react';
 import {
   TrendingUp,
-  TrendingDown,
   Phone,
   Target,
   Award,
-  Zap,
-  Calendar,
   Bell,
-  Clock,
-  PhoneCall,
-  FileText,
   Plus,
+  ClipboardList,
+  GitBranch,
+  AlertCircle,
+  Building2,
+  RefreshCw,
+  Clock,
 } from 'lucide-react';
+import type { CallerStats } from '@/app/api/caller/stats/route';
 
-const stats = [
+function formatCurrency(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return `${currency} ${value.toLocaleString()}`;
+  }
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function PageHeader({
+  onRefresh,
+  refreshing,
+  notifCount,
+}: {
+  onRefresh: () => void;
+  refreshing: boolean;
+  notifCount: number;
+}) {
+  return (
+    <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 sm:px-6 lg:px-8">
+      <div className="flex items-center justify-between gap-3 h-16">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Statistics</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Live from your pipelines</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/caller/new-lead"
+            className="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" /> New Lead
+          </Link>
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-400 ${refreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+          <Link
+            href="/caller/notifications"
+            className="relative w-10 h-10 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg flex items-center justify-center hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Bell className="w-4 h-4 text-gray-600 dark:text-gray-300" />
+            {notifCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                {notifCount > 99 ? '99+' : notifCount}
+              </span>
+            )}
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+const kpiConfig = [
   {
-    label: 'Weekly Leads',
-    value: '47',
-    target: 60,
-    icon: Zap,
-    trend: '+12%',
-    trendUp: true,
-    bgColor: 'bg-gradient-to-br from-indigo-500 to-indigo-600',
-    cardBg:
-      'bg-gradient-to-br from-indigo-50 via-indigo-50/50 to-white dark:from-indigo-950/40 dark:via-indigo-950/20 dark:to-slate-900/40',
-    borderColor: 'border-indigo-200/60 dark:border-indigo-800/60',
-    progressColor: 'bg-gradient-to-r from-indigo-500 to-indigo-600',
-  },
-  {
-    label: 'Connected Calls',
-    value: '34',
-    target: 50,
-    icon: Phone,
-    trend: '+8%',
-    trendUp: true,
-    bgColor: 'bg-gradient-to-br from-emerald-500 to-emerald-600',
-    cardBg:
-      'bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-white dark:from-emerald-950/40 dark:via-emerald-950/20 dark:to-slate-900/40',
-    borderColor: 'border-emerald-200/60 dark:border-emerald-800/60',
-    progressColor: 'bg-gradient-to-r from-emerald-500 to-emerald-600',
-  },
-  {
-    label: 'MQLs',
-    value: '18',
-    target: 25,
+    key: 'openDeals' as const,
+    label: 'Open Deals',
+    sub: 'Across your pipelines',
     icon: Target,
-    trend: '-3%',
-    trendUp: false,
-    bgColor: 'bg-gradient-to-br from-blue-500 to-blue-600',
-    cardBg:
-      'bg-gradient-to-br from-blue-50 via-blue-50/50 to-white dark:from-blue-950/40 dark:via-blue-950/20 dark:to-slate-900/40',
-    borderColor: 'border-blue-200/60 dark:border-blue-800/60',
-    progressColor: 'bg-gradient-to-r from-blue-500 to-blue-600',
+    iconBg: 'bg-indigo-50 dark:bg-indigo-950/60',
+    iconColor: 'text-indigo-600 dark:text-indigo-400',
+    format: (v: number) => String(v),
   },
   {
-    label: 'SQLs',
-    value: '11',
-    target: 15,
+    key: 'wonThisMonth' as const,
+    label: 'Won This Month',
+    sub: 'Current calendar month',
     icon: Award,
-    trend: '+5%',
-    trendUp: true,
-    bgColor: 'bg-gradient-to-br from-amber-500 to-amber-600',
-    cardBg:
-      'bg-gradient-to-br from-amber-50 via-amber-50/50 to-white dark:from-amber-950/40 dark:via-amber-950/20 dark:to-slate-900/40',
-    borderColor: 'border-amber-200/60 dark:border-amber-800/60',
-    progressColor: 'bg-gradient-to-r from-amber-500 to-amber-600',
+    iconBg: 'bg-emerald-50 dark:bg-emerald-950/60',
+    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    format: (v: number) => String(v),
+  },
+  {
+    key: 'newThisWeek' as const,
+    label: 'New This Week',
+    sub: 'Added in last 7 days',
+    icon: Phone,
+    iconBg: 'bg-blue-50 dark:bg-blue-950/60',
+    iconColor: 'text-blue-600 dark:text-blue-400',
+    format: (v: number) => String(v),
+  },
+  {
+    key: 'conversionRate' as const,
+    label: 'Win Rate',
+    sub: 'Won vs. closed (all time)',
+    icon: TrendingUp,
+    iconBg: 'bg-amber-50 dark:bg-amber-950/60',
+    iconColor: 'text-amber-600 dark:text-amber-400',
+    format: (v: number) => `${v}%`,
   },
 ];
 
 export default function CallerHomePage() {
-  return (
-    <div className="min-h-screen pb-8">
-      {/* Header */}
-      <div className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-4 sm:px-6 lg:px-8 shadow-md">
-        <div className="flex items-center justify-between gap-3 h-16 sm:h-20">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 dark:text-slate-100">
-              Statistics
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Your performance overview
+  const [stats, setStats] = useState<CallerStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [noPipelines, setNoPipelines] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+
+  const fetchStats = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    setError(null);
+    try {
+      const url = isRefresh ? '/api/caller/stats?refresh=true' : '/api/caller/stats';
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Failed to load stats');
+      if (json.noPipelines) {
+        setNoPipelines(true);
+      } else {
+        setStats(json.data as CallerStats);
+        setNoPipelines(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    fetch('/api/caller/notifications')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.notifications) {
+          try {
+            const stored = localStorage.getItem('leadflow-read-notif-ids');
+            const readIds: Set<string> = stored ? new Set(JSON.parse(stored)) : new Set();
+            const unread = d.notifications.filter((n: { id: string }) => !readIds.has(n.id)).length;
+            setNotifCount(unread);
+          } catch {
+            setNotifCount(d.notifications.length);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [fetchStats]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-8">
+        <PageHeader onRefresh={() => fetchStats(true)} refreshing={false} notifCount={notifCount} />
+        <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-5 animate-pulse"
+              >
+                <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-slate-800 mb-4" />
+                <div className="h-8 w-16 rounded bg-gray-100 dark:bg-slate-800 mb-2" />
+                <div className="h-3 w-28 rounded bg-gray-100 dark:bg-slate-800 mb-1" />
+                <div className="h-3 w-20 rounded bg-gray-100 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[1, 2].map((i) => (
+              <div
+                key={i}
+                className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-5 animate-pulse h-48"
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (noPipelines) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex flex-col">
+        <PageHeader
+          onRefresh={() => fetchStats(true)}
+          refreshing={refreshing}
+          notifCount={notifCount}
+        />
+        <div className="flex-1 flex items-center justify-center px-4 py-20">
+          <div className="max-w-sm text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-5">
+              <GitBranch className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No Pipelines Assigned
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              You don&apos;t have any Pipedrive pipelines assigned to your account. Contact your
+              administrator to get access.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/caller/new-lead"
-              className="hidden sm:flex items-center gap-2 font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-lg transition-colors h-11 shadow-lg shadow-indigo-500/30 text-sm"
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-950 flex flex-col">
+        <PageHeader
+          onRefresh={() => fetchStats(true)}
+          refreshing={refreshing}
+          notifCount={notifCount}
+        />
+        <div className="flex-1 flex items-center justify-center px-4 py-20">
+          <div className="max-w-sm text-center">
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+            <button
+              onClick={() => fetchStats(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
-              <Plus className="w-4 h-4" /> New Lead
-            </Link>
-            <button className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 px-3 py-2 rounded-lg h-11 shadow-md text-sm">
-              <Calendar className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">This Week</span>
-              <span className="sm:hidden">Week</span>
+              <RefreshCw className="w-4 h-4" /> Try again
             </button>
-            <Link
-              href="/caller/notifications"
-              className="relative w-11 h-11 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl flex items-center justify-center shadow-md"
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const maxOpen = Math.max(...(stats?.pipelines.map((p) => p.openCount) ?? []), 1);
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 pb-8">
+      <PageHeader
+        onRefresh={() => fetchStats(true)}
+        refreshing={refreshing}
+        notifCount={notifCount}
+      />
+      <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {kpiConfig.map(({ key, label, sub, icon: Icon, iconBg, iconColor, format }) => (
+            <div
+              key={key}
+              className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm"
             >
-              <Bell className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                3
-              </span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Grid */}
-      <div className="px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            const TrendIcon = stat.trendUp ? TrendingUp : TrendingDown;
-            const prog = (parseInt(stat.value) / stat.target) * 100;
-            return (
-              <div
-                key={stat.label}
-                className={`${stat.cardBg} border ${stat.borderColor} rounded-2xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-all hover:scale-[1.02] duration-200 relative overflow-hidden`}
-              >
-                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-white/30 to-transparent dark:from-white/5 rounded-full blur-2xl" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-3">
-                    <div
-                      className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl ${stat.bgColor} flex items-center justify-center shadow-md`}
-                    >
-                      <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                    </div>
-                    <div
-                      className={`flex items-center gap-0.5 text-xs font-semibold ${stat.trendUp ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}
-                    >
-                      <TrendIcon className="w-3 h-3" />
-                      {stat.trend}
-                    </div>
-                  </div>
-                  <div className="mb-3">
-                    <p className="text-3xl sm:text-4xl font-bold bg-gradient-to-br from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                      {stat.value}
-                    </p>
-                    <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mt-1">
-                      {stat.label}
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="w-full h-2 bg-slate-200/60 dark:bg-slate-800/60 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${stat.progressColor}`}
-                        style={{ width: `${Math.min(prog, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                      {stat.value} of {stat.target} target
-                    </p>
-                  </div>
-                </div>
+              <div className={`w-9 h-9 rounded-xl ${iconBg} flex items-center justify-center mb-4`}>
+                <Icon className={`w-4 h-4 ${iconColor}`} />
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Today's Focus + Quick Insights */}
-      <div className="px-4 sm:px-6 lg:px-8 pt-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Today's Focus */}
-          <div>
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-              Today&apos;s Focus
-            </h2>
-            <div className="relative bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-amber-300/50 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-              <div className="relative z-10">
-                <div className="inline-block bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full mb-3 border border-white/30">
-                  <span className="text-xs font-bold text-white uppercase tracking-wide">
-                    Priority Action
-                  </span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-2 drop-shadow-lg">
-                  You need 3 more calls to hit today&apos;s target
-                </h3>
-                <p className="text-sm text-white/90">
-                  You&apos;re making great progress! Stay focused!
-                </p>
-                <div className="mt-5 bg-white/20 backdrop-blur-sm rounded-2xl p-4 border border-white/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-white">Daily Progress</span>
-                    <span className="text-xs font-bold text-white">70% Complete</span>
-                  </div>
-                  <div className="w-full h-3 bg-white/30 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-white rounded-full shadow-lg"
-                      style={{ width: '70%' }}
-                    />
-                  </div>
-                </div>
-              </div>
+              <p className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-0.5">
+                {stats ? format(stats[key] as number) : '---'}
+              </p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{sub}</p>
             </div>
-          </div>
-
-          {/* Quick Insights */}
-          <div className="lg:flex lg:flex-col">
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-              Quick Insights
-            </h2>
-            <div className="flex flex-col gap-3 lg:flex-1">
-              <div className="bg-gradient-to-br from-purple-600 via-indigo-600 to-blue-600 rounded-2xl p-4 sm:p-5 shadow-lg lg:flex-1">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center flex-shrink-0">
-                    <TrendingUp className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white mb-1">Strong Week Performance</p>
-                    <p className="text-xs text-purple-100">
-                      You&apos;re on track to exceed your weekly target.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl p-4 shadow-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      MQL Rate
-                    </span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">38%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
-                    <div
-                      className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
-                      style={{ width: '38%' }}
-                    />
-                  </div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl p-4 shadow-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      SQL Rate
-                    </span>
-                    <span className="text-sm font-bold text-slate-900 dark:text-white">61%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
-                    <div
-                      className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
-                      style={{ width: '61%' }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
 
-      {/* Last Activity + Quick Actions */}
-      <div className="px-4 sm:px-6 lg:px-8 pt-6 pb-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-              Last Activity
+            <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+              Pipeline Breakdown
             </h2>
-            <div className="bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-2xl p-4 sm:p-5 shadow-lg">
-              <div className="flex flex-col lg:flex-row items-start gap-3">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <PhoneCall className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white mb-1">
-                      Last call: Emma Davis – CloudBase Pty
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                        MQL
-                      </span>
-                      <div className="flex items-center gap-1 text-xs text-slate-500">
-                        <Clock className="w-3 h-3" />
-                        1h ago
+            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+              {stats?.pipelines.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <GitBranch className="w-6 h-6 text-gray-300 dark:text-gray-700 mb-2" />
+                  <p className="text-sm text-gray-400">No pipelines found</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {stats?.pipelines.map((pipeline) => (
+                    <div key={pipeline.id}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate mr-2">
+                          {pipeline.name}
+                        </span>
+                        <span className="text-sm font-bold text-gray-900 dark:text-white shrink-0">
+                          {pipeline.openCount}
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                          style={{ width: `${(pipeline.openCount / maxOpen) * 100}%` }}
+                        />
                       </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-2 w-full lg:w-auto pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-200 dark:border-slate-700">
-                  <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors active:scale-95">
-                    <PhoneCall className="w-4 h-4" />
-                    Call Again
-                  </button>
-                  <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-xl text-sm font-medium border border-slate-300 dark:border-slate-600 active:scale-95">
-                    <FileText className="w-4 h-4" />
-                    View Note
-                  </button>
-                </div>
+              )}
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  Total open deal value
+                </span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {stats ? formatCurrency(stats.totalOpenValue, stats.currency) : '---'}
+                </span>
               </div>
             </div>
           </div>
+
           <div>
-            <h2 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">
-              Quick Actions
+            <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+              Recent Deals
             </h2>
-            <div className="grid grid-cols-2 gap-3">
-              <Link
-                href="/caller/submissions"
-                className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-4 sm:p-5 text-center hover:shadow-2xl hover:shadow-indigo-500/30 transition-all active:scale-95 shadow-lg"
-              >
-                <p className="text-sm font-semibold text-white mb-1">View Leads</p>
-                <p className="text-xs text-indigo-100">See all submissions</p>
-              </Link>
-              <Link
-                href="/caller/help"
-                className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-4 sm:p-5 text-center hover:shadow-2xl hover:shadow-emerald-500/30 transition-all active:scale-95 shadow-lg"
-              >
-                <p className="text-sm font-semibold text-white mb-1">Get Help</p>
-                <p className="text-xs text-emerald-100">Field hints & tips</p>
-              </Link>
+            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+              {stats?.recentDeals.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Building2 className="w-6 h-6 text-gray-300 dark:text-gray-700 mb-2" />
+                  <p className="text-sm text-gray-400">No open deals yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {stats?.recentDeals.map((deal) => (
+                    <div key={deal.id} className="flex items-start gap-3">
+                      <div className="w-8 h-8 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                        <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {deal.title}
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 flex items-center gap-1">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          {deal.org_name ?? deal.person_name ?? 'No org'} &middot;{' '}
+                          {timeAgo(deal.update_time)}
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">
+                        {formatCurrency(deal.value, deal.currency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">
+            Quick Actions
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href="/caller/submissions"
+              className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all"
+            >
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center mb-3">
+                <ClipboardList className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">View Leads</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">See all submissions</p>
+            </Link>
           </div>
         </div>
       </div>

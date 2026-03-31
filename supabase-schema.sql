@@ -311,9 +311,8 @@ DROP FUNCTION IF EXISTS _role_id(text);
 -- =============================================================================
 -- RBAC: User ↔ Pipeline Assignments
 -- Determines which Pipedrive pipelines a sales user can enter deals into.
--- If a user has NO rows here, they can enter deals into ALL pipelines
--- (unrestricted — applies to admins). If rows exist, they are restricted
--- to only those pipelines.
+-- If a user has NO rows here, they have NO pipeline access (access denied).
+-- Pipelines must be explicitly assigned — there is no implicit "all access".
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS app_user_pipelines (
   id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
