@@ -35,6 +35,10 @@ import type {
   PipedrivePersonsListParams,
   PipedriveActivitiesListParams,
   PipedriveListParams,
+  PipedriveSearchResponse,
+  PipedrivePersonSearchItem,
+  PipedriveOrgSearchItem,
+  PipedriveDealSearchItem,
 } from '@/types/pipedrive';
 
 // ---------------------------------------------------------------------------
@@ -200,6 +204,27 @@ export const deals = {
     return put<PipedriveResponse<PipedriveDeal>>(`/v1/deals/${id}`, data);
   },
 
+  /** List activities for a deal. */
+  activities(id: number, params?: { start?: number; limit?: number }) {
+    return get<PipedriveListResponse<PipedriveActivity>>(
+      `/v1/deals/${id}/activities`,
+      params as Record<string, unknown>,
+    );
+  },
+
+  /** List updates (flow/history) for a deal — changelog, notes, activities, etc. */
+  flow(
+    id: number,
+    params?: { start?: number; limit?: number; all_changes?: string; items?: string },
+  ) {
+    return get<{
+      success: boolean;
+      data: unknown[];
+      related_objects?: Record<string, unknown>;
+      additional_data?: unknown;
+    }>(`/v1/deals/${id}/flow`, params as Record<string, unknown>);
+  },
+
   /** Delete a deal. */
   delete(id: number) {
     return del<PipedriveResponse<{ id: number }>>(`/v1/deals/${id}`);
@@ -236,7 +261,7 @@ export const deals = {
     start?: number;
     limit?: number;
   }) {
-    return get<PipedriveListResponse<{ item: PipedriveDeal; result_score: number }>>(
+    return get<PipedriveSearchResponse<PipedriveDealSearchItem>>(
       '/v1/deals/search',
       params as Record<string, unknown>,
     );
@@ -313,7 +338,7 @@ export const persons = {
     start?: number;
     limit?: number;
   }) {
-    return get<PipedriveListResponse<{ item: PipedrivePerson; result_score: number }>>(
+    return get<PipedriveSearchResponse<PipedrivePersonSearchItem>>(
       '/v1/persons/search',
       params as Record<string, unknown>,
     );
@@ -356,7 +381,7 @@ export const organizations = {
     start?: number;
     limit?: number;
   }) {
-    return get<PipedriveListResponse<{ item: PipedriveOrganization; result_score: number }>>(
+    return get<PipedriveSearchResponse<PipedriveOrgSearchItem>>(
       '/v1/organizations/search',
       params as Record<string, unknown>,
     );
@@ -488,6 +513,43 @@ export const organizationFields = {
 };
 
 // ---------------------------------------------------------------------------
+// PERSON FIELDS (schema introspection)
+// ---------------------------------------------------------------------------
+
+export const personFields = {
+  /** List person fields (built-in + custom). */
+  list() {
+    return get<PipedriveListResponse<Record<string, unknown>>>('/v1/personFields');
+  },
+};
+
+// ---------------------------------------------------------------------------
+// NOTES
+// ---------------------------------------------------------------------------
+
+export const notes = {
+  /** List notes for a deal. */
+  list(params: { deal_id: number; start?: number; limit?: number }) {
+    return get<
+      PipedriveListResponse<{
+        id: number;
+        content: string;
+        add_time: string;
+        update_time: string;
+        user_id: number;
+        deal_id: number | null;
+        person_id: number | null;
+        org_id: number | null;
+      }>
+    >('/v1/notes', params as Record<string, unknown>);
+  },
+  /** Create a note attached to a deal, person, or org. */
+  create(data: { content: string; deal_id?: number; person_id?: number; org_id?: number }) {
+    return post<PipedriveResponse<{ id: number; content: string }>>('/v1/notes', data);
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Convenience: single-import namespace
 // ---------------------------------------------------------------------------
 
@@ -502,6 +564,8 @@ const pipedrive = {
   users,
   dealFields,
   organizationFields,
+  personFields,
+  notes,
 } as const;
 
 export default pipedrive;

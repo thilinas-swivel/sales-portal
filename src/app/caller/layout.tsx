@@ -3,16 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import {
-  BarChart3,
-  ClipboardList,
-  Plus,
-  Users,
-  User,
-  LogOut,
-  HelpCircle,
-  Bell,
-} from 'lucide-react';
+import { BarChart3, ClipboardList, Plus, Users, User, LogOut, Bell, GitBranch } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 
@@ -26,11 +17,11 @@ const navItems = [
 
 const sidebarNavItems = [
   { id: 'home', href: '/caller', label: 'Stats', icon: BarChart3 },
+  { id: 'pipelines', href: '/caller/pipelines', label: 'My Pipelines', icon: GitBranch },
   { id: 'submissions', href: '/caller/submissions', label: 'My Leads', icon: ClipboardList },
   { id: 'contacts', href: '/caller/contacts', label: 'Contacts', icon: Users },
   { id: 'new-lead', href: '/caller/new-lead', label: 'New Lead', icon: Plus },
   { id: 'notifications', href: '/caller/notifications', label: 'Notifications', icon: Bell },
-  { id: 'help', href: '/caller/help', label: 'Help', icon: HelpCircle },
   { id: 'profile', href: '/caller/profile', label: 'Profile', icon: User },
 ];
 
@@ -60,11 +51,11 @@ export default function CallerLayout({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Sidebar - tablet & desktop */}
-      <aside className="hidden sm:flex fixed inset-y-0 left-0 z-40 w-20 lg:w-64 flex-col bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-r border-slate-200 dark:border-slate-700">
+      <aside className="hidden sm:flex fixed inset-y-0 left-0 z-40 w-20 lg:w-64 flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800">
         {/* Logo */}
-        <div className="h-16 flex items-center px-4 lg:px-6 border-b border-slate-200 dark:border-slate-700">
+        <div className="h-16 flex items-center px-4 lg:px-6 border-b border-gray-200 dark:border-slate-800">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">LF</span>
           </div>
@@ -84,7 +75,7 @@ export default function CallerLayout({ children }: { children: React.ReactNode }
                 className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                   active
                     ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                    : 'text-slate-599 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800'
                 } ${item.id === 'new-lead' ? 'bg-indigo-600 hover:bg-indigo-700 !text-white dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:!text-white' : ''}`}
               >
                 <item.icon
@@ -97,7 +88,7 @@ export default function CallerLayout({ children }: { children: React.ReactNode }
         </nav>
 
         {/* Profile */}
-        <div className="p-3 border-t border-slate-200 dark:border-slate-700">
+        <div className="p-3 border-t border-gray-200 dark:border-slate-800">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
               {(user.name ?? '')
@@ -125,7 +116,7 @@ export default function CallerLayout({ children }: { children: React.ReactNode }
       <main className="sm:ml-20 lg:ml-64 pb-20 sm:pb-0">{children}</main>
 
       {/* Bottom Navigation - mobile only */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-300 dark:border-slate-700 shadow-lg">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 shadow-lg">
         <div className="h-16 flex items-center justify-between px-2">
           {navItems.map((item) => {
             const active = isActive(item.href);
