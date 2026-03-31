@@ -428,6 +428,49 @@ export interface PipedrivePersonsListParams extends PipedriveListParams {
   first_char?: string;
 }
 
+// ---------------------------------------------------------------------------
+// Search response types (search endpoints nest items under data.items)
+// ---------------------------------------------------------------------------
+
+/** Wrapper for Pipedrive search endpoint responses. */
+export interface PipedriveSearchResponse<T> {
+  success: boolean;
+  data: { items: { item: T; result_score: number }[] } | null;
+  additional_data?: Record<string, unknown>;
+}
+
+/** Simplified person from /v1/persons/search. */
+export interface PipedrivePersonSearchItem {
+  id: number;
+  name: string;
+  phones: string[];
+  emails: string[];
+  visible_to: number;
+  organization?: { id: number; name: string } | null;
+  [key: string]: unknown;
+}
+
+/** Simplified organization from /v1/organizations/search. */
+export interface PipedriveOrgSearchItem {
+  id: number;
+  name: string;
+  address?: string | null;
+  visible_to: number;
+  [key: string]: unknown;
+}
+
+/** Simplified deal from /v1/deals/search. */
+export interface PipedriveDealSearchItem {
+  id: number;
+  title: string;
+  status: string;
+  value: number;
+  currency: string;
+  person?: { id: number; name: string } | null;
+  organization?: { id: number; name: string } | null;
+  [key: string]: unknown;
+}
+
 export interface PipedriveActivitiesListParams extends PipedriveListParams {
   user_id?: number;
   filter_id?: number;

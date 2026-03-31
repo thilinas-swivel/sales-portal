@@ -1,68 +1,23 @@
 'use client';
 
-import { useState } from 'react';
-import { ArrowLeft, Bell, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, Bell, CheckCircle2, Info, RefreshCw } from 'lucide-react';
+import type { CallerNotification } from '@/app/api/caller/notifications/route';
 
-interface Notification {
-  id: string;
-  type: 'success' | 'info' | 'warning';
-  title: string;
-  message: string;
-  time: string;
-  read: boolean;
+const READ_IDS_KEY = 'leadflow-read-notif-ids';
+
+function loadReadIds(): Set<string> {
+  try {
+    const stored = localStorage.getItem(READ_IDS_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch {
+    return new Set();
+  }
 }
 
-const initialNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'success',
-    title: 'Lead Synced',
-    message: 'Your lead for Sarah Johnson has been synced successfully.',
-    time: '5 min ago',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'info',
-    title: 'New Assignment',
-    message: 'You have been assigned 3 new leads from TechCorp batch.',
-    time: '1 hour ago',
-    read: false,
-  },
-  {
-    id: '3',
-    type: 'warning',
-    title: 'Sync Failed',
-    message: 'Lead sync for David Kim failed. Please retry.',
-    time: '2 hours ago',
-    read: false,
-  },
-  {
-    id: '4',
-    type: 'success',
-    title: 'Target Reached',
-    message: 'Congratulations! You reached your daily call target.',
-    time: '5 hours ago',
-    read: true,
-  },
-  {
-    id: '5',
-    type: 'info',
-    title: 'Weekly Report',
-    message: 'Your weekly performance report is ready to view.',
-    time: '1 day ago',
-    read: true,
-  },
-  {
-    id: '6',
-    type: 'success',
-    title: 'Lead Converted',
-    message: 'Emily Rodriguez moved to Qualified stage.',
-    time: '2 days ago',
-    read: true,
-  },
-];
+function saveReadIds(ids: Set<string>) {
+  localStorage.setItem(READ_IDS_KEY, JSON.stringify([...ids]));
+}
 
 const typeConfig = {
   success: {
@@ -80,102 +35,181 @@ const typeConfig = {
     color: 'text-amber-600 dark:text-amber-400',
     bg: 'bg-amber-50 dark:bg-amber-500/10',
   },
-};
+} as const;
+
+function relativeTime(ts: string): string {
+  const mins = (Date.now() - new Date(ts).getTime()) / 60000;
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${Math.floor(mins)} min ago`;
+  const hours = mins / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 7) return `${Math.floor(days)}d ago`;
+  return new Date(ts).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+}
 
 export default function NotificationsPage() {
-  const router = useRouter();
-  const [notifications, setNotifications] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState<CallerNotification[]>([]);
+  const [readIds, setReadIds] = useState<Set<string>>(() => loadReadIds());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const fetchNotifications = useCallback(async (showRefreshSpinner = false) => {
+    if (showRefreshSpinner) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    setError(null);
 
-  const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  const markRead = (id: string) =>
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      const res = await fetch('/api/caller/notifications');
+      if (!res.ok) throw new Error('Failed to load notifications');
+      const data = await res.json();
+      setNotifications(data.notifications ?? []);
+    } catch {
+      setError('Could not load notifications. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
+
+  const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+  const markAllRead = () => {
+    const next = new Set(notifications.map((n) => n.id));
+    setReadIds(next);
+    saveReadIds(next);
+  };
+  const markRead = (id: string) => {
+    const next = new Set([...readIds, id]);
+    setReadIds(next);
+    saveReadIds(next);
+  };
 
   return (
     <div className="min-h-screen pb-8">
-      {/* Header */}
       <div className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 px-4 sm:px-6 lg:px-8 shadow-md">
         <div className="flex items-center justify-between gap-3 h-16 sm:h-20">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 flex items-center justify-center shadow-sm"
-            >
-              <ArrowLeft className="w-5 h-5 text-slate-700 dark:text-slate-300" />
-            </button>
-            <div>
-              <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 dark:text-slate-100">
-                Notifications
-              </h1>
-              {unreadCount > 0 && (
-                <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                  {unreadCount} unread
-                </p>
-              )}
-            </div>
+          <div>
+            <h1 className="text-lg sm:text-2xl font-semibold text-slate-900 dark:text-slate-100">
+              Notifications
+            </h1>
+            {unreadCount > 0 && (
+              <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                {unreadCount} unread
+              </p>
+            )}
           </div>
-          {unreadCount > 0 && (
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+              >
+                Mark all read
+              </button>
+            )}
             <button
-              onClick={markAllRead}
-              className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+              onClick={() => fetchNotifications(true)}
+              disabled={refreshing}
+              className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 flex items-center justify-center shadow-sm disabled:opacity-50"
+              aria-label="Refresh notifications"
             >
-              Mark all read
+              <RefreshCw
+                className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${refreshing ? 'animate-spin' : ''}`}
+              />
             </button>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Notification List */}
       <div className="px-4 sm:px-6 lg:px-8 pt-4 space-y-2 max-w-2xl mx-auto">
-        {notifications.map((notif) => {
-          const cfg = typeConfig[notif.type];
-          const Icon = cfg.icon;
-          return (
-            <button
-              key={notif.id}
-              onClick={() => markRead(notif.id)}
-              className={`w-full text-left rounded-2xl p-4 border transition-all ${
-                notif.read
-                  ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                  : 'bg-indigo-50/50 dark:bg-indigo-500/5 border-indigo-200 dark:border-indigo-500/20'
-              }`}
-            >
-              <div className="flex gap-3">
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg}`}
-                >
-                  <Icon className={`w-4 h-4 ${cfg.color}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p
-                      className={`text-sm font-medium ${notif.read ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}
-                    >
-                      {notif.title}
-                    </p>
-                    {!notif.read && (
-                      <div className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 flex-shrink-0 mt-1.5" />
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {notif.message}
-                  </p>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                    {notif.time}
-                  </p>
-                </div>
-              </div>
-            </button>
-          );
-        })}
-
-        {notifications.length === 0 && (
-          <div className="py-16 text-center">
-            <Bell className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <p className="text-sm text-slate-500">No notifications</p>
+        {loading && (
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className="h-20 rounded-2xl bg-slate-100 dark:bg-slate-800 animate-pulse"
+              />
+            ))}
           </div>
         )}
+
+        {!loading && error && (
+          <div className="py-10 text-center">
+            <p className="text-sm text-red-500 mb-3">{error}</p>
+            <button
+              onClick={() => fetchNotifications()}
+              className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!loading && !error && notifications.length === 0 && (
+          <div className="py-16 text-center">
+            <Bell className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              No recent activity
+            </p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              Deal updates from the last 14 days will appear here.
+            </p>
+          </div>
+        )}
+
+        {!loading &&
+          !error &&
+          notifications.map((notif) => {
+            const cfg = typeConfig[notif.type];
+            const Icon = cfg.icon;
+            const isRead = readIds.has(notif.id);
+
+            return (
+              <button
+                key={notif.id}
+                onClick={() => markRead(notif.id)}
+                className={`w-full text-left rounded-2xl p-4 border transition-all ${
+                  isRead
+                    ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                    : 'bg-indigo-50/50 dark:bg-indigo-500/5 border-indigo-200 dark:border-indigo-500/20'
+                }`}
+              >
+                <div className="flex gap-3">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.bg}`}
+                  >
+                    <Icon className={`w-4 h-4 ${cfg.color}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p
+                        className={`text-sm font-medium ${isRead ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}
+                      >
+                        {notif.title}
+                      </p>
+                      {!isRead && (
+                        <div className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 flex-shrink-0 mt-1.5" />
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                      {notif.message}
+                    </p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                      {relativeTime(notif.timestamp)}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
       </div>
     </div>
   );
